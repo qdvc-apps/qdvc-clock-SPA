@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0f13;
+    --fg: #f4f4f2;
+    --dim: #7d818c;
+    --dimmer: #3a3d45;
+    --line: rgba(255,255,255,0.08);
+    --pill-bg: rgba(255,255,255,0.04);
+    --pill-active: rgba(255,255,255,0.10);
+    --accent: #c8ff5e;
+    --track: rgba(255,255,255,0.07);
+  }
+  html.light {
+    --bg: #f3f2ee;
+    --fg: #16171a;
+    --dim: #8a8d94;
+    --dimmer: #c4c6cb;
+    --line: rgba(0,0,0,0.08);
+    --pill-bg: rgba(0,0,0,0.035);
+    --pill-active: rgba(0,0,0,0.08);
+    --accent: #3f7d18;
+    --track: rgba(0,0,0,0.08);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: background 0.4s ease, color 0.4s ease;
+  }
+
+  /* ---- Top bar ---- */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    padding: 22px 24px;
+    flex: 0 0 auto;
+  }
+
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    background: var(--pill-bg);
+    border-radius: 999px;
+    padding: 4px;
+  }
+  .tab {
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    padding: 7px 18px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background 0.25s ease, color 0.25s ease;
+  }
+  .tab:hover { color: var(--fg); }
+  .tab.active {
+    background: var(--pill-active);
+    color: var(--fg);
+  }
+
+  .theme-toggle {
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 999px;
+    line-height: 0;
+    transition: color 0.25s ease, background 0.25s ease;
+  }
+  .theme-toggle:hover { color: var(--fg); background: var(--pill-bg); }
+
+  /* ---- Main stage ---- */
+  .stage {
+    flex: 1 1 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 32px;
+    min-height: 0;
+  }
+
+  .panel { display: none; width: 100%; }
+  .panel.active { display: block; }
+
+  .center-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    width: 100%;
+  }
+
+  .heading-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--dim);
+    font-family: inherit;
+    font-size: clamp(20px, 3.4vw, 34px);
+    font-weight: 300;
+    text-align: center;
+    letter-spacing: 0.01em;
+    width: min(90vw, 760px);
+    padding: 4px 0;
+  }
+  .heading-input::placeholder { color: var(--dimmer); }
+
+  .clock-time {
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 300;
+    font-size: clamp(58px, 17vw, 260px);
+    line-height: 0.95;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .clock-time .sep { color: var(--dim); }
+
+  .date-line {
+    font-size: clamp(14px, 1.8vw, 20px);
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: var(--dim);
+    text-transform: uppercase;
+    min-height: 1.2em;
+  }
+
+  /* progress layout */
+  .progress-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(28px, 6vw, 90px);
+    width: 100%;
+  }
+  .progress-dial { flex: 0 0 auto; }
+  .progress-dial svg { width: clamp(150px, 22vw, 300px); height: auto; display: block; }
+  .dial-track { fill: none; stroke: var(--track); }
+  .dial-sector { fill: var(--accent); opacity: 0.9; }
+  .dial-ring { fill: none; stroke: var(--line); }
+
+  #progress .clock-time { font-size: clamp(46px, 11vw, 170px); }
+
+  .hint {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.05em;
+    color: var(--dim);
+    text-align: center;
+    min-height: 1.2em;
+  }
+
+  /* ---- Controls dock (bottom-left) ---- */
+  .dock {
+    position: fixed;
+    left: 24px;
+    bottom: 22px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    z-index: 5;
+  }
+  .dock-group { display: none; flex-direction: column; gap: 10px; }
+  .dock-group.active { display: flex; }
+  .ctl-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .ctl {
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    padding: 7px 13px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+    white-space: nowrap;
+  }
+  .ctl:hover { color: var(--fg); border-color: var(--dim); }
+  .ctl.on { color: var(--accent); border-color: var(--accent); }
+
+  .time-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 5px 6px 5px 13px;
+  }
+  .time-field label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--dim);
+    letter-spacing: 0.03em;
+  }
+  .time-field input[type="time"] {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--fg);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color-scheme: dark;
+    cursor: pointer;
+  }
+  html.light .time-field input[type="time"] { color-scheme: light; }
+
+  @media (max-width: 640px) {
+    .progress-row { flex-direction: column; gap: 24px; }
+    .dock { left: 14px; bottom: 14px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+  <header class="topbar">
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="clock" role="tab">Clock</button>
+      <button class="tab" data-tab="countdown" role="tab">Countdown</button>
+      <button class="tab" data-tab="progress" role="tab">Progress</button>
+    </nav>
+    <button class="theme-toggle" id="themeBtn" aria-label="Toggle light and dark mode">
+      <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"></svg>
+    </button>
+  </header>
+
+  <main class="stage">
+    <!-- CLOCK -->
+    <section class="panel active" id="clock">
+      <div class="center-col">
+        <div class="clock-time" id="clockTime">--:--</div>
+        <div class="date-line" id="clockDate"></div>
+      </div>
+    </section>
+
+    <!-- COUNTDOWN -->
+    <section class="panel" id="countdown">
+      <div class="center-col">
+        <input class="heading-input" id="cdHeading" placeholder="Countdown to…" spellcheck="false">
+        <div class="clock-time" id="cdTime">00:00:00</div>
+        <div class="hint" id="cdHint"></div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section class="panel" id="progress">
+      <div class="center-col">
+        <input class="heading-input" id="pgHeading" placeholder="In progress…" spellcheck="false">
+        <div class="progress-row">
+          <div class="progress-dial">
+            <svg viewBox="0 0 200 200">
+              <circle class="dial-track" cx="100" cy="100" r="86" stroke-width="4"/>
+              <path class="dial-sector" id="dialSector" d=""/>
+              <circle class="dial-ring" cx="100" cy="100" r="86" stroke-width="1"/>
+            </svg>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:12px;">
+            <div class="clock-time" id="pgTime">00:00:00</div>
+            <div class="hint" id="pgHint"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Controls dock -->
+  <div class="dock">
+    <div class="dock-group active" data-group="clock">
+      <div class="ctl-row">
+        <button class="ctl" id="fmtBtn">24h</button>
+        <button class="ctl" id="secBtn">show seconds</button>
+        <button class="ctl" id="dateBtn">show date</button>
+      </div>
+    </div>
+
+    <div class="dock-group" data-group="countdown">
+      <div class="ctl-row">
+        <span class="time-field">
+          <label>target</label>
+          <input type="time" id="cdTarget" value="16:00">
+        </span>
+      </div>
+    </div>
+
+    <div class="dock-group" data-group="progress">
+      <div class="ctl-row">
+        <span class="time-field">
+          <label>start</label>
+          <input type="time" id="pgStart" value="09:00">
+        </span>
+        <span class="time-field">
+          <label>end</label>
+          <input type="time" id="pgEnd" value="17:00">
+        </span>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+
+  /* ---------- Theme ---------- */
+  const html = document.documentElement;
+  const themeBtn = $('themeBtn');
+  const icon = $('themeIcon');
+  const MOON = '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>';
+  const SUN = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>';
+  function applyTheme(light) {
+    html.classList.toggle('light', light);
+    icon.innerHTML = light ? SUN : MOON;
+  }
+  applyTheme(false);
+  themeBtn.addEventListener('click', () => applyTheme(!html.classList.contains('light')));
+
+  /* ---------- Tabs ---------- */
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+  const groups = document.querySelectorAll('.dock-group');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    const name = t.dataset.tab;
+    tabs.forEach(x => x.classList.toggle('active', x === t));
+    panels.forEach(p => p.classList.toggle('active', p.id === name));
+    groups.forEach(g => g.classList.toggle('active', g.dataset.group === name));
+  }));
+
+  /* ---------- Clock state ---------- */
+  let use24 = true, showSecs = false, showDate = false;
+  const fmtBtn = $('fmtBtn'), secBtn = $('secBtn'), dateBtn = $('dateBtn');
+  const clockDate = $('clockDate');
+
+  fmtBtn.addEventListener('click', () => {
+    use24 = !use24;
+    fmtBtn.textContent = use24 ? '24h' : '12h';
+  });
+  secBtn.addEventListener('click', () => {
+    showSecs = !showSecs;
+    secBtn.classList.toggle('on', showSecs);
+    secBtn.textContent = showSecs ? 'hide seconds' : 'show seconds';
+  });
+  dateBtn.addEventListener('click', () => {
+    showDate = !showDate;
+    dateBtn.classList.toggle('on', showDate);
+    dateBtn.textContent = showDate ? 'hide date' : 'show date';
+    clockDate.style.opacity = showDate ? '1' : '0';
+  });
+  clockDate.style.opacity = '0';
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const sep = (s) => `<span class="sep">${s}</span>`;
+
+  function renderClock(now) {
+    let h = now.getHours();
+    const m = now.getMinutes(), s = now.getSeconds();
+    let suffix = '';
+    if (!use24) {
+      suffix = h >= 12 ? ' PM' : ' AM';
+      h = h % 12 || 12;
+    }
+    let str = pad(h) + sep(':') + pad(m);
+    if (showSecs) str += sep(':') + pad(s);
+    if (suffix) str += `<span class="sep" style="font-size:0.4em;letter-spacing:0.05em;"> ${suffix.trim()}</span>`;
+    $('clockTime').innerHTML = str;
+
+    if (showDate) {
+      clockDate.textContent = now.toLocaleDateString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+    }
+  }
+
+  /* ---------- Countdown ---------- */
+  function nextOccurrence(now, hh, mm) {
+    const t = new Date(now);
+    t.setHours(hh, mm, 0, 0);
+    if (t <= now) t.setDate(t.getDate() + 1);
+    return t;
+  }
+  function parseTime(val) {
+    const [hh, mm] = val.split(':').map(Number);
+    return { hh, mm };
+  }
+  function fmtHMS(ms) {
+    const total = Math.max(0, Math.floor(ms / 1000));
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    return pad(h) + sep(':') + pad(m) + sep(':') + pad(s);
+  }
+
+  function renderCountdown(now) {
+    const { hh, mm } = parseTime($('cdTarget').value);
+    const target = nextOccurrence(now, hh, mm);
+    $('cdTime').innerHTML = fmtHMS(target - now);
+    $('cdHint').textContent = 'until ' + pad(hh) + ':' + pad(mm)
+      + (target.getDate() !== now.getDate() ? ' tomorrow' : '');
+  }
+
+  /* ---------- Progress ---------- */
+  function describeSector(cx, cy, r, fraction) {
+    if (fraction <= 0) return '';
+    if (fraction >= 1) {
+      // full circle: two arcs
+      return `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`;
+    }
+    const ang = fraction * 2 * Math.PI - Math.PI / 2; // start at top
+    const x = cx + r * Math.cos(ang);
+    const y = cy + r * Math.sin(ang);
+    const large = fraction > 0.5 ? 1 : 0;
+    return `M ${cx} ${cy} L ${cx} ${cy - r} A ${r} ${r} 0 ${large} 1 ${x} ${y} Z`;
+  }
+
+  function windowFor(now, startVal, endVal) {
+    const s = parseTime(startVal), e = parseTime(endVal);
+    let start = new Date(now); start.setHours(s.hh, s.mm, 0, 0);
+    let end = new Date(now); end.setHours(e.hh, e.mm, 0, 0);
+    if (end <= start) end.setDate(end.getDate() + 1); // overnight window
+    // if we're already past the end, roll the whole window forward a day
+    if (now > end) { start.setDate(start.getDate() + 1); end.setDate(end.getDate() + 1); }
+    return { start, end };
+  }
+
+  function renderProgress(now) {
+    const { start, end } = windowFor(now, $('pgStart').value, $('pgEnd').value);
+    const dur = end - start;
+    let frac, remaining, hint;
+
+    if (now < start) {
+      frac = 0;
+      remaining = start - now;
+      $('pgTime').innerHTML = fmtHMS(remaining);
+      hint = 'starts in ' + $('pgStart').value;
+    } else {
+      const elapsed = now - start;
+      frac = Math.min(1, elapsed / dur);
+      remaining = end - now;
+      $('pgTime').innerHTML = fmtHMS(remaining);
+      hint = Math.round(frac * 100) + '% elapsed · ends ' + $('pgEnd').value;
+    }
+    $('pgHint').textContent = hint;
+    $('dialSector').setAttribute('d', describeSector(100, 100, 86, frac));
+  }
+
+  /* ---------- Loop ---------- */
+  function tick() {
+    const now = new Date();
+    renderClock(now);
+    renderCountdown(now);
+    renderProgress(now);
+  }
+  tick();
+  setInterval(tick, 250);
+
+  ['cdTarget','pgStart','pgEnd'].forEach(id => $(id).addEventListener('input', tick));
+})();
+</script>
+</body>
+</html>
